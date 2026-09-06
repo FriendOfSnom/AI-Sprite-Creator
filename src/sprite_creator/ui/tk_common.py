@@ -195,6 +195,48 @@ def apply_dark_theme(root: tk.Tk) -> None:
 # STYLED BUTTON FACTORIES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Shared button metrics so every button in the app lines up. Height comes
+# from font + pady (identical across all three tiers at a given `large`),
+# so any two buttons with the same `large` value render the same height;
+# same `width` value + same font also gives the same pixel width, which is
+# what makes paired buttons (Back/Next, Save/Cancel) match.
+_BTN_PADX = 16
+_BTN_PADY = 5
+_BTN_PADY_LARGE = 8
+
+
+def _make_button(
+    parent: tk.Widget,
+    text: str,
+    command: Callable,
+    width: int,
+    large: bool,
+    bg: str,
+    hover: str,
+) -> tk.Button:
+    btn = tk.Button(
+        parent,
+        text=text,
+        command=command,
+        width=width,
+        bg=bg,
+        fg=TEXT_COLOR,
+        activebackground=hover,
+        activeforeground=TEXT_COLOR,
+        font=BUTTON_FONT_LARGE if large else BUTTON_FONT,
+        relief="flat",
+        cursor="hand2",
+        bd=0,
+        padx=_BTN_PADX,
+        pady=_BTN_PADY_LARGE if large else _BTN_PADY,
+    )
+    # Keep disabled buttons visually distinct from active ones
+    btn.configure(disabledforeground=TEXT_DISABLED)
+    btn.bind("<Enter>", lambda e: btn["state"] == "normal" and btn.configure(bg=hover))
+    btn.bind("<Leave>", lambda e: btn.configure(bg=bg))
+    return btn
+
+
 def create_primary_button(
     parent: tk.Widget,
     text: str,
@@ -202,41 +244,9 @@ def create_primary_button(
     width: int = 15,
     large: bool = False,
 ) -> tk.Button:
-    """
-    Create a styled primary action button (blue accent).
-
-    Args:
-        parent: Parent widget
-        text: Button text
-        command: Click handler
-        width: Button width in characters
-        large: Use larger font for prominent buttons
-
-    Returns:
-        Configured tk.Button
-    """
-    btn = tk.Button(
-        parent,
-        text=text,
-        command=command,
-        width=width,
-        bg=ACCENT_COLOR,
-        fg=TEXT_COLOR,
-        activebackground=ACCENT_HOVER,
-        activeforeground=TEXT_COLOR,
-        font=BUTTON_FONT_LARGE if large else BUTTON_FONT,
-        relief="flat",
-        cursor="hand2",
-        bd=0,
-        padx=12,
-        pady=5 if large else 3,
-    )
-
-    # Hover effects
-    btn.bind("<Enter>", lambda e: btn.configure(bg=ACCENT_HOVER))
-    btn.bind("<Leave>", lambda e: btn.configure(bg=ACCENT_COLOR))
-
-    return btn
+    """Create a styled primary action button (blue accent)."""
+    return _make_button(parent, text, command, width, large,
+                        ACCENT_COLOR, ACCENT_HOVER)
 
 
 def create_secondary_button(
@@ -244,40 +254,11 @@ def create_secondary_button(
     text: str,
     command: Callable,
     width: int = 15,
+    large: bool = False,
 ) -> tk.Button:
-    """
-    Create a styled secondary button (gray, muted).
-
-    Args:
-        parent: Parent widget
-        text: Button text
-        command: Click handler
-        width: Button width in characters
-
-    Returns:
-        Configured tk.Button
-    """
-    btn = tk.Button(
-        parent,
-        text=text,
-        command=command,
-        width=width,
-        bg=SECONDARY_COLOR,
-        fg=TEXT_COLOR,
-        activebackground=SECONDARY_HOVER,
-        activeforeground=TEXT_COLOR,
-        font=BUTTON_FONT,
-        relief="flat",
-        cursor="hand2",
-        bd=0,
-        padx=12,
-        pady=3,
-    )
-
-    btn.bind("<Enter>", lambda e: btn.configure(bg=SECONDARY_HOVER))
-    btn.bind("<Leave>", lambda e: btn.configure(bg=SECONDARY_COLOR))
-
-    return btn
+    """Create a styled secondary button (gray, muted)."""
+    return _make_button(parent, text, command, width, large,
+                        SECONDARY_COLOR, SECONDARY_HOVER)
 
 
 def create_danger_button(
@@ -285,40 +266,11 @@ def create_danger_button(
     text: str,
     command: Callable,
     width: int = 15,
+    large: bool = False,
 ) -> tk.Button:
-    """
-    Create a styled danger/cancel button (red).
-
-    Args:
-        parent: Parent widget
-        text: Button text
-        command: Click handler
-        width: Button width in characters
-
-    Returns:
-        Configured tk.Button
-    """
-    btn = tk.Button(
-        parent,
-        text=text,
-        command=command,
-        width=width,
-        bg=DANGER_COLOR,
-        fg=TEXT_COLOR,
-        activebackground=DANGER_HOVER,
-        activeforeground=TEXT_COLOR,
-        font=BUTTON_FONT,
-        relief="flat",
-        cursor="hand2",
-        bd=0,
-        padx=12,
-        pady=3,
-    )
-
-    btn.bind("<Enter>", lambda e: btn.configure(bg=DANGER_HOVER))
-    btn.bind("<Leave>", lambda e: btn.configure(bg=DANGER_COLOR))
-
-    return btn
+    """Create a styled danger/cancel button (red)."""
+    return _make_button(parent, text, command, width, large,
+                        DANGER_COLOR, DANGER_HOVER)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

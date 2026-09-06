@@ -57,6 +57,12 @@ REF_SPRITES_DIR = DATA_DIR / "reference_sprites"
 # External backup storage (keeps character folders clean for ST game compatibility)
 BACKUPS_BASE_DIR = Path.home() / ".sprite_creator" / "backups"
 
+# Game Sprite Importer workspaces (one folder per imported game)
+IMPORTS_BASE_DIR = Path.home() / ".sprite_creator" / "imports"
+
+# Legacy cookie cache from the old standalone pipeline tool (migrated on first read)
+LEGACY_COOKIE_CACHE_PATH = Path.home() / ".st_sprite_tool" / "auth.json"
+
 
 def get_backup_dir(backup_id: str) -> Path:
     """Get external backup directory for a character's backup_id (from character.yml)."""
@@ -161,6 +167,63 @@ def save_upload_username(username: str) -> None:
             pass
 
     config["upload_username"] = username
+
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SITE COOKIES (Game Sprite Importer crawler)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def load_site_cookies(netloc: str) -> Dict[str, str]:
+    """Load saved cookies for a crawler site host (e.g. 'exhentai.org').
+
+    Performs a one-time migration from the legacy ~/.st_sprite_tool/auth.json
+    cache used by the old standalone pipeline tool.
+
+    Returns:
+        Cookie name -> value dict, empty if none saved.
+    """
+    import json
+    config = {}
+    if CONFIG_PATH.exists():
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            config = {}
+
+    site_cookies = config.get("site_cookies")
+    if site_cookies is None and LEGACY_COOKIE_CACHE_PATH.exists():
+        # One-time migration from the old tool's cookie cache
+        try:
+            with open(LEGACY_COOKIE_CACHE_PATH, "r", encoding="utf-8") as f:
+                legacy = json.load(f) or {}
+            migrated = legacy.get("cookies") or {}
+            if migrated:
+                for host, jar in migrated.items():
+                    save_site_cookies(host, jar)
+                site_cookies = migrated
+        except (json.JSONDecodeError, IOError):
+            site_cookies = None
+
+    return (site_cookies or {}).get(netloc, {})
+
+
+def save_site_cookies(netloc: str, cookies: Dict[str, str]) -> None:
+    """Save cookies for a crawler site host to the config file."""
+    import json
+    config = {}
+    if CONFIG_PATH.exists():
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    config.setdefault("site_cookies", {})[netloc] = cookies
 
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:

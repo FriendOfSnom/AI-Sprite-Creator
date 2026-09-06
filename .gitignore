@@ -53,3 +53,5 @@ dist/
 .DS_Store
 Thumbs.db
 nul
+# Reference ST character folders (data, not app code)
+normal_ST_Character_Folders/

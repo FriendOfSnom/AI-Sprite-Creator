@@ -101,6 +101,8 @@ def main():
         run_add_to_existing()
     elif selected_tool == "gemini_workshop":
         run_gemini_workshop()
+    elif selected_tool == "sprite_importer":
+        run_sprite_importer_tool()
 
 
 def run_sprite_creator():
@@ -441,6 +443,33 @@ def run_gemini_workshop():
         print(f"[ERROR] {e}")
         import traceback
         traceback.print_exc()
+
+    # Return to launcher
+    main()
+
+
+def run_sprite_importer_tool():
+    """Run the Game Sprite Importer flow (no API key needed)."""
+    from .flows.importer import run_sprite_importer
+
+    print("\n[INFO] Starting Game Sprite Importer...")
+    try:
+        log_info("Starting Game Sprite Importer")
+        run_sprite_importer()
+        log_info("Game Sprite Importer closed")
+    except Exception as e:
+        log_exception(f"Error in Game Sprite Importer: {e}")
+        messagebox.showerror("Error", f"An error occurred:\n{e}")
+        print(f"[ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+
+    # Bury dead Tk objects NOW, on the main thread. If they linger as
+    # garbage, the cyclic GC may collect them later inside a worker
+    # thread — Tcl is single-threaded and aborts the process (SIGILL,
+    # Tcl_AsyncDelete panic).
+    import gc
+    gc.collect()
 
     # Return to launcher
     main()

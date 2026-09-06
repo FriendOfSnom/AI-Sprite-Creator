@@ -16,6 +16,7 @@ AI-powered character sprite generator for Student Transfer, using Google Gemini.
 - **Expression sheet generation** for visual reference
 - **Sprite Tester** to preview characters in a simulated Ren'Py environment
 - **Gemini Workshop** for quick img2img edits or text-to-image generation with style references
+- **Game Sprite Importer**: crawl or import VN sprite rips and convert them into ST characters with deterministic (non-AI) pixel sorting
 - **Sprite database** upload and download community-created characters
 
 ---
@@ -91,6 +92,23 @@ A standalone Gemini-powered image tool, separate from the main character pipelin
 - Optional Student Transfer style references for consistent art style
 - Auto and manual background removal
 - History gallery to keep results and click to reuse as input for iterative editing
+
+### Game Sprite Importer
+
+Import existing VN sprite rips and convert them into ST character folders — no AI involved anywhere in this flow:
+
+- **Download** a gallery with the built-in crawler (E-Hentai/ExHentai, with resume support and ExHentai cookie login), or point at a local folder of images
+- **Auto-sort** the images into pose → outfit → expression groups using pure pixel comparison. Sprite rips are composited variants of one base render, so images that differ only in the face are expressions of one outfit, and outfits sharing identical head pixels belong to one pose
+- **Review grid**: assemble the detected pose stacks into characters with a few clicks; merge/split anything the sorter got wrong; discard CGs and junk
+- **Finalize**: mid-thigh and chin crops (chin pre-suggested from where the expressions actually differ), eye line, name color, scale against reference sprites — then standard ST character folders are written with expression sheets and showChar files
+- **Verification**: every outfit + expression combination from the rip is recomposited from the output folder and compared pixel-for-pixel against the original download; mismatches are flagged on the summary
+
+Imports live in per-game workspaces (`~/.sprite_creator/imports/`) and are fully resumable — close the app mid-sort and pick up where you left off.
+
+Also supported:
+- **Multi-post games**: add more galleries/folders to an existing import ("Add More Images" on the first screen); new images are matched into existing poses automatically and new poses appear as extra cards — your sorting and characters are never touched
+- **Pose-size normalization**: rip galleries ship poses at arbitrary canvas sizes; poses are automatically normalized against each other (by head height, with a per-pose nudge preview) so the single ST character scale works across all of them
+- **Redo any character** after finalizing — crops, colors, and names are kept as starting values
 
 ### Expression Sheet Generator
 

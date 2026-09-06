@@ -84,6 +84,14 @@ A quick Gemini-powered image tool:
 - History gallery: keep results you like, then click to reuse as input
 - Save input or result images directly to disk
 
+Game Sprite Importer
+Import existing VN sprite rips and turn them into ST characters:
+- Download a gallery with the built-in crawler (or use a local folder)
+- Automatic sorting into pose/outfit/expression groups (no AI, pure
+  pixel comparison)
+- Review grid to assemble poses into characters
+- Produces standard ST character folders with expression sheets
+
 Expression Sheet Generator
 Create expression reference sheets from existing character folders.
 Use this if you already have characters and want visual reference sheets.
@@ -410,6 +418,17 @@ class LauncherWindow:
         )
         card6.grid(row=1, column=2, padx=8, pady=6, sticky="nsew")
 
+        # Row 2 (Import tier): Game Sprite Importer
+        card7 = ToolCard(
+            cards_frame,
+            title="Game Sprite\nImporter",
+            description="Download sprite rips from a gallery, auto-sort them, and convert them into ST characters.",
+            icon_text="\U0001F4E5",  # Inbox tray emoji
+            primary=False,
+            on_click=self._select_sprite_importer,
+        )
+        card7.grid(row=2, column=0, padx=8, pady=6, sticky="nsew")
+
         # Footer
         footer_frame = tk.Frame(main_frame, bg=BG_COLOR)
         footer_frame.pack(fill="x", pady=(10, 0))
@@ -518,6 +537,12 @@ class LauncherWindow:
     def _select_gemini_workshop(self):
         """Handle Gemini Workshop selection."""
         self._result = "gemini_workshop"
+        self._unbind_scroll()
+        self.root.quit()
+
+    def _select_sprite_importer(self):
+        """Handle Game Sprite Importer selection."""
+        self._result = "sprite_importer"
         self._unbind_scroll()
         self.root.quit()
 
@@ -702,7 +727,7 @@ class LauncherWindow:
         Run the launcher and return the selected tool.
 
         Returns:
-            "sprite_creator", "expression_sheets", "sprite_tester", "add_to_existing", "gemini_workshop", or None if closed
+            "sprite_creator", "expression_sheets", "sprite_tester", "add_to_existing", "gemini_workshop", "sprite_importer", or None if closed
         """
         self.root.mainloop()
         result = self._result

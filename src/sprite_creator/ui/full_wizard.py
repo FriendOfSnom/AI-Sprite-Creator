@@ -35,6 +35,7 @@ from ..config import (
 from .tk_common import (
     apply_dark_theme,
     apply_window_size,
+    get_primary_screen,
     create_primary_button,
     create_secondary_button,
     create_help_button,
@@ -56,6 +57,11 @@ class FullWizard:
         self,
         output_root: Optional[Path] = None,
         api_key: Optional[str] = None,
+        *,
+        state=None,
+        title: str = "ST Sprite Creator",
+        loading_subtext: str = "Please wait while the AI generates content.",
+        fixed_size: bool = False,
     ):
         """
         Initialize the wizard.
@@ -64,18 +70,41 @@ class FullWizard:
             output_root: Root folder for character output. If None, will be
                 prompted during wizard.
             api_key: Gemini API key. If None, will be obtained via ensure_api_key.
+            state: Optional pre-built state object for flows that use their
+                own state dataclass (steps duck-type state access). Defaults
+                to a fresh WizardState.
+            title: Window and header title.
+            loading_subtext: Secondary line shown on the loading overlay.
         """
         self.root = tk.Tk()
-        self.root.title("ST Sprite Creator")
+        self.root.title(title)
         self.root.protocol("WM_DELETE_WINDOW", self._on_cancel)
+        self._title = title
+        self._loading_subtext = loading_subtext
 
         apply_dark_theme(self.root)
-        apply_window_size(self.root, "fullscreen")
+
+        # Fixed-size mode: one logical design at 1600x900, scaled by a single
+        # factor S = monitor_height / 1080 (floored at 1, capped at 2). The
+        # window, fonts, and (via ui_scale) the thumbnails all scale by S, so
+        # the layout is identical on every monitor and never needs live-resize
+        # handling. ui_scale is read by steps to size images.
+        self.ui_scale: float = 1.0
+        if fixed_size:
+            self._apply_fixed_scaling()
+        else:
+            apply_window_size(self.root, "fullscreen")
+            # Floor the window so controls never collapse off-screen; below
+            # this the content area's scrollbars take over (drag-only).
+            self.root.minsize(900, 640)
 
         # State
-        self._state = WizardState()
-        self._state.output_root = output_root
-        self._state.api_key = api_key
+        if state is not None:
+            self._state = state
+        else:
+            self._state = WizardState()
+            self._state.output_root = output_root
+            self._state.api_key = api_key
 
         # Steps
         self._steps: List[WizardStep] = []
@@ -101,6 +130,35 @@ class FullWizard:
         self._callback_queue: queue.Queue = queue.Queue()
 
         self._build_ui()
+
+    # Logical design size (at scale 1.0, i.e. 1080p and below).
+    DESIGN_W = 1600
+    DESIGN_H = 900
+
+    def _apply_fixed_scaling(self) -> None:
+        """Non-resizable window at DESIGN_W x DESIGN_H * S, centered, with
+        fonts scaled by S. Called before _build_ui so widgets pick up the
+        scaled fonts."""
+        self.root.update_idletasks()
+        sw, sh, ox, oy = get_primary_screen(self.root)
+        # Window is always about 83% of screen height (900/1080), so it never
+        # fills the screen; S is that same ratio, floored at 1 and capped at 2.
+        scale = max(1.0, min(2.0, sh / 1080.0))
+        self.ui_scale = scale
+
+        # Scale all point-based fonts (and thus text-driven widget sizes).
+        try:
+            base = float(self.root.tk.call("tk", "scaling"))
+            self.root.tk.call("tk", "scaling", base * scale)
+        except Exception:
+            pass
+
+        w = int(self.DESIGN_W * scale)
+        h = int(self.DESIGN_H * scale)
+        x = ox + (sw - w) // 2
+        y = oy + max(0, (sh - h) // 2)
+        self.root.geometry(f"{w}x{h}+{x}+{y}")
+        self.root.resizable(False, False)
 
     @property
     def state(self) -> WizardState:
@@ -182,7 +240,7 @@ class FullWizard:
         # Title
         tk.Label(
             header,
-            text="ST Sprite Creator",
+            text=self._title,
             bg=BG_SECONDARY,
             fg=TEXT_COLOR,
             font=TITLE_FONT,
@@ -230,7 +288,7 @@ class FullWizard:
         self._loading_frame = tk.Frame(self._main_frame, bg=BG_COLOR)
 
         # Center the loading indicator
-        inner = tk.Frame(self._loading_frame, bg=CARD_BG, padx=40, pady=30)
+        inner = tk.Frame(self._loading_frame, bg=CARD_BG, padx=60, pady=40)
         inner.place(relx=0.5, rely=0.5, anchor="center")
 
         self._loading_label = tk.Label(
@@ -242,24 +300,47 @@ class FullWizard:
         )
         self._loading_label.pack()
 
-        # Progress indicator (simple dots animation could be added)
+        # Animated working indicator
+        self._loading_dots_label = tk.Label(
+            inner,
+            text="●",
+            bg=CARD_BG,
+            fg=TEXT_SECONDARY,
+            font=SECTION_FONT,
+        )
+        self._loading_dots_label.pack(pady=(6, 0))
+        self._loading_dots_count = 1
+
         tk.Label(
             inner,
-            text="Please wait while the AI generates content.",
+            text=self._loading_subtext,
             bg=CARD_BG,
             fg=TEXT_SECONDARY,
             font=SMALL_FONT,
+            wraplength=420,
+            justify="center",
         ).pack(pady=(10, 0))
+
+    def _animate_loading_dots(self) -> None:
+        """Cycle the working indicator while the overlay is visible."""
+        if self._loading_frame and self._loading_frame.winfo_ismapped():
+            self._loading_dots_count = self._loading_dots_count % 3 + 1
+            self._loading_dots_label.configure(
+                text="● " * self._loading_dots_count)
+            self.root.after(400, self._animate_loading_dots)
 
     def _build_footer(self) -> None:
         """Build the footer with navigation buttons."""
         footer = tk.Frame(self._main_frame, bg=BG_COLOR, padx=30, pady=12)
         footer.pack(fill="x", side="bottom")
 
-        # Use grid layout for left-center-right positioning
-        footer.columnconfigure(0, weight=1)  # Left section
-        footer.columnconfigure(1, weight=1)  # Center section
-        footer.columnconfigure(2, weight=1)  # Right section
+        # Left-center-right positioning. uniform= forces all three columns to
+        # EQUAL width (weight alone only splits leftover space, so unequal
+        # content widths — narrow "Cancel" vs "Back"+"Next" — would push the
+        # centered Help button off true center).
+        footer.columnconfigure(0, weight=1, uniform="footer")  # Left
+        footer.columnconfigure(1, weight=1, uniform="footer")  # Center
+        footer.columnconfigure(2, weight=1, uniform="footer")  # Right
 
         # Left side: Cancel button only
         left_frame = tk.Frame(footer, bg=BG_COLOR)
@@ -281,15 +362,15 @@ class FullWizard:
         nav_frame = tk.Frame(footer, bg=BG_COLOR)
         nav_frame.grid(row=0, column=2, sticky="e")
 
-        # Pack Next first with side="right" so it appears rightmost
+        # Back/Next are a matched pair: same size (same large flag + width)
+        # so the bottom-right corner reads as one consistent control group.
         self._next_btn = create_primary_button(
-            nav_frame, "Next", self.go_next, width=12, large=True
+            nav_frame, "Next", self.go_next, width=11, large=True
         )
         self._next_btn.pack(side="right")
 
-        # Pack Back with side="right" so it appears left of Next
         self._back_btn = create_secondary_button(
-            nav_frame, "Back", self.go_back, width=10
+            nav_frame, "Back", self.go_back, width=11, large=True
         )
         self._back_btn.pack(side="right", padx=(0, 12))
 
@@ -306,10 +387,14 @@ class FullWizard:
         canvas_h = self._scroll_canvas.winfo_height()
         content_h = self._content_frame.winfo_reqheight()
         canvas_w = self._scroll_canvas.winfo_width()
-        content_w = self._content_frame.winfo_reqwidth()
+        # Width tracks the viewport so card grids REFLOW their columns to fit
+        # (fixed card size, fluid layout). Using max(canvas_w, content_w) here
+        # would pin the width to the grid's own laid-out size and stop it from
+        # ever wrapping to fewer columns. Height still grows so vertical scroll
+        # remains the "window too short" fallback.
         self._scroll_canvas.itemconfigure(
             self._canvas_window,
-            width=max(canvas_w, content_w),
+            width=canvas_w,
             height=max(canvas_h, content_h),
         )
         self._update_scrollbars()
@@ -323,12 +408,12 @@ class FullWizard:
         """
         canvas_w = self._scroll_canvas.winfo_width()
         canvas_h = self._scroll_canvas.winfo_height()
-        content_w = self._content_frame.winfo_reqwidth()
         content_h = self._content_frame.winfo_reqheight()
-        # Make content at least as large as the canvas so fill/expand works
+        # Content width follows the viewport (see _on_content_configure) so
+        # card grids reflow instead of forcing a horizontal scrollbar.
         self._scroll_canvas.itemconfigure(
             self._canvas_window,
-            width=max(canvas_w, content_w),
+            width=canvas_w,
             height=max(canvas_h, content_h),
         )
         self._update_scrollbars()
@@ -549,8 +634,11 @@ class FullWizard:
         if self._loading_label:
             self._loading_label.configure(text=message)
         if self._loading_frame:
+            was_hidden = not self._loading_frame.winfo_ismapped()
             self._loading_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
             self._loading_frame.lift()
+            if was_hidden:
+                self.root.after(400, self._animate_loading_dots)
         self.root.update()
 
     def hide_loading(self) -> None:

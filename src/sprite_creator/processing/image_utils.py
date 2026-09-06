@@ -11,13 +11,18 @@ from PIL import Image
 from ..config import REF_SPRITES_DIR
 
 
-def save_img_webp_or_png(img: Image.Image, dest_stem: Path) -> Path:
+def save_img_webp_or_png(img: Image.Image, dest_stem: Path,
+                         method: int = 6) -> Path:
     """
     Save image as WEBP lossless, falling back to PNG if needed.
 
     Args:
         img: PIL Image to save.
         dest_stem: Destination path without extension.
+        method: libwebp compression effort 0-6. This trades encode SPEED for
+            file SIZE only; lossless output is pixel-identical at every value.
+            6 is smallest-but-slowest (default, keeps existing behavior); 4 is
+            ~6x faster for ~3% larger files.
 
     Returns:
         Path to saved file (with appropriate extension).
@@ -28,7 +33,8 @@ def save_img_webp_or_png(img: Image.Image, dest_stem: Path) -> Path:
 
     try:
         out_path = dest_stem.with_suffix(".webp")
-        safe_img.save(out_path, format="WEBP", lossless=True, quality=100, method=6)
+        safe_img.save(out_path, format="WEBP", lossless=True, quality=100,
+                      method=method)
         return out_path
     except Exception as e:
         print(f"[WARN] WEBP save failed for {dest_stem.name}: {e}. Falling back to PNG.")
